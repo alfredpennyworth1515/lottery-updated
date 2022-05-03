@@ -11,15 +11,21 @@ contract Lottery {
     uint public lotteryPool;
     // equal to 5% of Total balance
     uint public usageFees;
-    address public manager;
+    address public owner;
     address payable[] public players;
-    
+    address payable public ownerPayable;
+    address public firstManager;
+    address public secondManager;
+
     constructor() {
-        manager = msg.sender;
+        owner = msg.sender;
+        ownerPayable = payable(msg.sender);
         ticketPrice = 20;
         maxNumberOfTickets = 10;
         maxAmountAllowed = ticketPrice * maxNumberOfTickets; 
     }
+
+
 
     function buyTicket() public payable {
         // Requirement: 
@@ -29,7 +35,7 @@ contract Lottery {
 
         require(msg.value > 0 ether);
         require(msg.value <= maxAmountAllowed);
-        // only multiple of 20 allowed
+        // only multiple of ticketPrice allowed (multiple of 20)
         require(msg.value % ticketPrice == 0);
 
         lotteryPool = lotteryPool + ((msg.value * 95) / 100);
@@ -38,20 +44,32 @@ contract Lottery {
         players.push(payable(msg.sender));
     }    
 
+    function setFirstManager() public payable {
+        firstManager = msg.sender;
+    }
+
+    function setSecondManager() public payable {
+        secondManager = msg.sender;
+    }
+
     function getCurrentBalance() public view returns (uint) {
         //return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, players)));
         return address(this).balance;
     }
 
-    function getCurrentLotteryPool() public view returns (uint) {
-        //return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, players)));
-        return lotteryPool;
+    function adjustTicketPrice() public payable ownerRestricted {
+        ticketPrice = msg.value;
     }
 
-    function getCurrentFees() public view returns (uint) {
-        //return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, players)));
-        return usageFees;
-    }
+    // function getCurrentLotteryPool() public view returns (uint) {
+    //     //return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, players)));
+    //     return lotteryPool;
+    // }
+
+    // function getCurrentFees() public view returns (uint) {
+    //     //return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, players)));
+    //     return usageFees;
+    // }
 
     // function enter() public payable {
     //     // Requirement: 
@@ -67,14 +85,33 @@ contract Lottery {
         return uint(keccak256(abi.encodePacked(block.difficulty, block.timestamp, players)));
     }
     
+    // function pickWinner() public ownerRestricted {
+    //     uint index = random() % players.length;
+    //     players[index].transfer(address(this).balance);
+    //     players = new address payable[](0);
+    // }
+
     function pickWinner() public restricted {
         uint index = random() % players.length;
-        players[index].transfer(address(this).balance);
+        // transfer balance without fees
+        players[index].transfer(lotteryPool);
         players = new address payable[](0);
+        lotteryPool = 0;
     }
     
+    function withdrawFees() public ownerRestricted {
+        // transfer balance without fees
+        ownerPayable.transfer(usageFees);
+        usageFees = 0;
+    }
+
+    modifier ownerRestricted() {
+        require(msg.sender == owner);
+        _;
+    }
+
     modifier restricted() {
-        require(msg.sender == manager);
+        require(msg.sender == owner || msg.sender == firstManager || msg.sender == secondManager);
         _;
     }
     
